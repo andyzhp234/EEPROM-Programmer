@@ -1,102 +1,88 @@
-// EEPROM Programmer following Ben Eater's hardware schematic with the ability to unlock Software Data Protection (SDP)
-
 #define SHIFT_DATA 2
 #define SHIFT_CLK 3
 #define SHIFT_LATCH 4
+#define EEPROM_D0 5
+#define EEPROM_D7 12
 #define WRITE_EN 13
-
-// common andode 7-segment display in hex decimal
-// byte data[] = { 0x01, 0x4f, 0x12, 0x06, 0x4c, 0x24, 0x20, 0x0f, 0x00, 0x04, 0x08, 0x60, 0x31, 0x42, 0x30, 0x38 };
-
-// common cathode 7-segment display in hex decimal
-// byte data[] = { 0x7e, 0x30, 0x6d, 0x79, 0x33, 0x5b, 0x5f, 0x70, 0x7f, 0x7b, 0x77, 0x1f, 0x4e, 0x3d, 0x4f, 0x47 };
-
-void enableWrite() {
-  digitalWrite(WRITE_EN, LOW);
-}
-void disableWrite() {
-  digitalWrite(WRITE_EN, HIGH);
-}
-
-void memoryValueTesting() {
-  // byte digits[] = { 0x7e, 0x30, 0x6d, 0x79, 0x33, 0x5b, 0x5f, 0x70, 0x7f, 0x7b };
-  // -029 = 11100010
-  // 100 11100010 (9) = 80 4E2
-  // 101 11100010 (2) = 180 5E2
-  // 110 11100010 (0) = 280
-  // -----------------------
-
-  // byte ones = readEEPROM(0x04e2);
-  // byte tens = readEEPROM(0x05e2);
-  // byte hundreds = readEEPROM(0x06e2);
-  // byte thousands = readEEPROM(0x07e2);
-  // char buf[80];
-  // sprintf(buf, "%02x %02x %02x %02x", thousands, hundreds, tens, ones);
-  // Serial.println(buf);
-}
 
 void writeDecimalDisplayValues() {
   byte digits[] = { 0x7e, 0x30, 0x6d, 0x79, 0x33, 0x5b, 0x5f, 0x70, 0x7f, 0x7b };
-
-  for (int i = 0; i <= 20; i++) {
-    Serial.println("Programming ones place");
-    for (int value = 0; value <= 255; value += 1) {
-      writeEEPROM(value, digits[value % 10]);
-    }
-
-    delay(i);
+  Serial.println("Programming ones place");
+  for (int value = 0; value <= 255; value += 1) {
+    writeEEPROM(value, digits[value % 10]);
   }
 
-  // -------------------------------------------------------------------------------
+  Serial.println("Programming tens place");
+  for (int value = 0; value <= 255; value += 1) {
+    writeEEPROM(value + 256, digits[(value / 10) % 10]);
+  }
 
-  // Serial.println("Programming ones place");
-  // for (int value = 0; value <= 255; value += 1) {
-  //   writeEEPROM(value, digits[value % 10]);
-  // }
+  Serial.println("Programming hundreds place");
+  for (int value = 0; value <= 255; value += 1) {
+    writeEEPROM(value + 512, digits[(value / 100) % 10]);
+  }
 
-  // Serial.println("Programming tens place");
-  // for (int value = 0; value <= 255; value += 1) {
-  //   writeEEPROM(value + 256, digits[(value / 10) % 10]);
-  // }
-
-  // Serial.println("Programming hundreds place");
-  // for (int value = 0; value <= 255; value += 1) {
-  //   writeEEPROM(value + 512, digits[(value / 100) % 10]);
-  // }
-
-  // Serial.println("Programming sign");
-  // for (int value = 0; value <= 255; value += 1) {
-  //   writeEEPROM(value + 768, 0);
-  // }
+  Serial.println("Programming sign");
+  for (int value = 0; value <= 255; value += 1) {
+    writeEEPROM(value + 768, 0);
+  }
 
   // ----------------------------------------------------------------
+  Serial.println("Programming ones place (twos complement)");
+  for (int value = -128; value <= 127; value += 1) {
+    writeEEPROM((byte)value + 1024, digits[abs(value) % 10]);
+  }
 
-  // Serial.println("Programming ones place (twos complement)");
-  // for (int value = -128; value <= 127; value += 1) {
-  //   writeEEPROM((byte)value + 1024, digits[abs(value) % 10]);
-  // }
+  Serial.println("Programming tens place (twos complement)");
+  for (int value = -128; value <= 127; value += 1) {
+    writeEEPROM((byte)value + 1280, digits[abs(value / 10) % 10]);
+  }
 
-  // Serial.println("Programming tens place (twos complement)");
-  // for (int value = -128; value <= 127; value += 1) {
-  //   writeEEPROM((byte)value + 1280, digits[abs(value / 10) % 10]);
-  // }
+  Serial.println("Programming hundreds place (twos complement)");
+  for (int value = -128; value <= 127; value += 1) {
+    writeEEPROM((byte)value + 1536, digits[abs(value / 100) % 10]);
+  }
 
-  // Serial.println("Programming hundreds place (twos complement)");
-  // for (int value = -128; value <= 127; value += 1) {
-  //   writeEEPROM((byte)value + 1536, digits[abs(value / 100) % 10]);
-  // }
+  Serial.println("Programming sign (twos complement)");
+  for (int value = -128; value <= 127; value += 1) {
+    if (value < 0) {
+      writeEEPROM((byte)value + 1792, 0x01);
+    } else {
+      writeEEPROM((byte)value + 1792, 0);
+    }
+  }
+}
 
-  // Serial.println("Programming sign (twos complement)");
-  // for (int value = -128; value <= 127; value += 1) {
-  //   if (value < 0) {
-  //     writeEEPROM((byte)value + 1792, 0x01);
-  //   } else {
-  //     writeEEPROM((byte)value + 1792, 0);
-  //   }
-  // }
+// Read the first 256 byte block of the EEPROM and dump it to the serial monitor.
+void printContents() {
+  byte digits[] = { 0x7e, 0x30, 0x6d, 0x79, 0x33, 0x5b, 0x5f, 0x70, 0x7f, 0x7b, 0x00, 0x01 };
+  // 0 - 256
+  // 256 - 512
+  // 512 - 768
+  // 768 - 1024
+
+  // 1024 - 1280
+  // 1280 - 1536
+  // 1536 - 1792
+  // 1792 - 2048
+
+  for (int base = 256*0; (base < 256*1); base += 16) {
+    byte data[16];
+
+    for (int offset = 0; offset <= 15; offset += 1) {
+      data[offset] = readEEPROM(base + offset);
+    }
+
+    char buf[80];
+    sprintf(buf, "%04x:  %02x %02x %02x %02x %02x %02x %02x %02x   %02x %02x %02x %02x %02x %02x %02x %02x",
+            base, data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7],
+            data[8], data[9], data[10], data[11], data[12], data[13], data[14], data[15]);
+    Serial.println(buf);
+  }
 }
 
 void setup() {
+  initUCode();
   // put your setup code here, to run once:
   pinMode(SHIFT_DATA, OUTPUT);
   pinMode(SHIFT_CLK, OUTPUT);
@@ -105,17 +91,13 @@ void setup() {
   pinMode(WRITE_EN, OUTPUT);
   Serial.begin(57600);
 
-  // Serial.print("\nDisabling EEPROM Software Data Protection(SDP)...");
-  // disableSoftwareWriteProtect();
-  // Serial.println("SDP disabled \n");
+  Serial.println("Programming EEPROM...");
+  writeDecimalDisplayValues();
+  Serial.println("Done\n");
 
-  // Serial.print("Programming EEPROM...");
-  // writeDecimalDisplayValues();
-  // Serial.println("Done\n");
-
-  // Serial.println("Reading EEPROM");
-  // printContents();
-  // Serial.println("Done\n");
+  Serial.println("Reading EEPROM");
+  printContents();
+  Serial.println("Done\n");
 }
 
 void loop() {}
@@ -159,13 +141,11 @@ void setAddress(int addr, bool outputEnable) {
   PORTD &= ~latchMask;
 }
 
-
-
 // Read a byte from the EEPROM at the specified address.
 byte readEEPROM(int address) {
   setDataBusMode(INPUT);
   setAddress(address, /*outputEnable*/ true);
-  delay(15);
+  delay(10);
   return readDataBus();
 }
 
@@ -177,64 +157,6 @@ void writeEEPROM(int address, byte data) {
   enableWrite();
   delayMicroseconds(1);
   disableWrite();
-  delay(10);
-}
-
-// Read the first 256 byte block of the EEPROM and dump it to the serial monitor.
-void printContents() {
-  byte digits[] = { 0x7e, 0x30, 0x6d, 0x79, 0x33, 0x5b, 0x5f, 0x70, 0x7f, 0x7b, 0x00, 0x01 };
-  // 0 - 256
-  // 256 - 512
-  // 512 - 768
-  // 768 - 1024
-  // 1024 - 1280
-  // 1280 - 1536
-  // 1536 - 1792
-  // 1792 - 2048
-
-  for (int base = 0; (base < 128); base += 16) {
-    // for (int base = 1920; (base < 2048); base += 16) {
-    byte data[16];
-
-    for (int offset = 0; offset <= 15; offset += 1) {
-      data[offset] = readEEPROM(base + offset);
-    }
-
-    char buf[80];
-    sprintf(buf, "%04x:  %02x %02x %02x %02x %02x %02x %02x %02x   %02x %02x %02x %02x %02x %02x %02x %02x",
-            base, data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7],
-            data[8], data[9], data[10], data[11], data[12], data[13], data[14], data[15]);
-    Serial.println(buf);
-  }
-}
-
-// Write the special six-byte code to turn off Software Data Protection.
-void disableSoftwareWriteProtect() {
-  disableWrite();
-  setDataBusMode(OUTPUT);
-
-  setByte(0xaa, 0x5555);
-  setByte(0x55, 0x2aaa);
-  setByte(0x80, 0x5555);
-  setByte(0xaa, 0x5555);
-  setByte(0x55, 0x2aaa);
-  setByte(0x20, 0x5555);
-
-  setDataBusMode(INPUT);
-  delay(10);
-}
-
-// Write the special three-byte code to turn on Software Data Protection.
-void enableSoftwareWriteProtect() {
-  disableWrite();
-  setDataBusMode(OUTPUT);
-
-  setByte(0xaa, 0x5555);
-  setByte(0x55, 0x2aaa);
-  setByte(0xa0, 0x5555);
-
-  setDataBusMode(INPUT);
-  delay(10);
 }
 
 // Set the I/O state of the data bus.
@@ -264,16 +186,10 @@ void writeDataBus(byte data) {
   PORTD = (PORTD & 0x1f) | (data << 5);
 }
 
-// Set an address and data value and toggle the write control.  This is used
-// to write control sequences, like the software write protect.  This is not a
-// complete byte write function because it does not set the chip enable or the
-// mode of the data bus.
-void setByte(byte value, word address) {
-  setAddress(address, false);
-  writeDataBus(value);
+void enableWrite() {
+  digitalWrite(WRITE_EN, LOW);
+}
 
-  delayMicroseconds(1);
-  enableWrite();
-  delayMicroseconds(1);
-  disableWrite();
+void disableWrite() {
+  digitalWrite(WRITE_EN, HIGH);
 }
